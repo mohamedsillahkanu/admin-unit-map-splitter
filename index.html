@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Unit Map Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { margin: 0; padding: 20px; background-color: #f0f4f8; font-family: 'Oswald', Arial, sans-serif; color: #000000; font-weight: 500; min-height: 100vh; }
+        
+        .page-container { width: 100%; max-width: 1400px; margin: 0 auto; }
+        
+        .page-header { background-color: #004080; color: #ffffff; padding: 25px 30px; text-align: center; margin-bottom: 15px; border-radius: 8px 8px 0 0; }
+        .logo-row { display: flex; justify-content: center; align-items: center; gap: 30px; margin-bottom: 15px; }
+        .logo-box { background: #ffffff; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: center; }
+        .logo-box img { width: 80px; height: auto; border-radius: 6px; }
+        .page-header h3 { margin: 12px 0 5px; font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+        .page-header .tagline { margin: 0; font-size: 10px; font-weight: 500; }
+        .page-header h1 { margin: 20px 0 10px; font-size: 24px; font-weight: 700; letter-spacing: 1px; }
+        .page-header .subtitle { font-size: 14px; font-weight: 500; }
+        
+        .content-card { border: 4px double #004080; border-radius: 12px; padding: 12px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
+        .content-inner { padding: 25px; }
+        
+        .section-header { background-color: #004080; color: #ffffff; padding: 15px 20px; margin-bottom: 20px; border-radius: 6px; display: flex; align-items: center; gap: 15px; }
+        .section-icon { background: #ffffff; color: #004080; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+        .section-title { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; color: #004080; font-size: 14px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-input, .form-select { width: 100%; padding: 12px 15px; border: 2px solid #004080; border-radius: 6px; font-size: 14px; font-family: 'Oswald', Arial, sans-serif; font-weight: 500; color: #000; background: #ffffff; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: #0056b3; box-shadow: 0 0 0 3px rgba(0, 64, 128, 0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .help-text { font-size: 12px; color: #666; margin-top: 5px; font-style: italic; }
+        
+        .btn-primary { padding: 14px 24px; background: #004080; color: #ffffff; border: 2px solid #004080; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-family: 'Oswald', Arial, sans-serif; transition: all 0.3s; }
+        .btn-primary:hover { background: #0056b3; border-color: #0056b3; }
+        .btn-primary:disabled { background: #6c757d; border-color: #6c757d; cursor: not-allowed; }
+        .btn-gold { padding: 14px 24px; background: #ffc107; color: #000000; border: 2px solid #ffc107; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-family: 'Oswald', Arial, sans-serif; transition: all 0.3s; }
+        .btn-gold:hover { background: #e0a800; border-color: #e0a800; }
+        .btn-gold:disabled { background: #ccc; color: #666; border-color: #ccc; cursor: not-allowed; }
+        .btn-success { padding: 14px 24px; background: #28a745; color: #ffffff; border: 2px solid #28a745; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-family: 'Oswald', Arial, sans-serif; transition: all 0.3s; }
+        .btn-success:hover { background: #218838; border-color: #218838; }
+        .btn-sm { padding: 8px 16px; font-size: 12px; }
+        
+        .upload-zone { border: 3px dashed #004080; border-radius: 8px; padding: 30px; text-align: center; background: #f8f9fa; cursor: pointer; transition: all 0.3s; }
+        .upload-zone:hover { background: #e7f3ff; border-color: #0056b3; }
+        .upload-zone.dragover { background: #d4edda; border-color: #28a745; }
+        .upload-zone.loaded { background: #d4edda; border-color: #28a745; border-style: solid; }
+        .upload-icon { font-size: 36px; margin-bottom: 10px; color: #004080; }
+        .upload-text { font-size: 14px; color: #004080; font-weight: 600; }
+        .upload-hint { font-size: 11px; color: #666; margin-top: 5px; }
+        
+        .file-info { background: #d4edda; border: 2px solid #28a745; border-radius: 6px; padding: 12px; margin-top: 10px; display: none; }
+        .file-info.show { display: block; }
+        .file-name { font-weight: 700; color: #155724; font-size: 13px; }
+        .file-details { font-size: 11px; color: #155724; margin-top: 3px; }
+        
+        .notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 15px 30px; border-radius: 8px; font-weight: 600; z-index: 3000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .notification.success { background: #d4edda; color: #155724; border: 2px solid #28a745; display: block; }
+        .notification.error { background: #f8d7da; color: #721c24; border: 2px solid #dc3545; display: block; }
+        .notification.info { background: #e7f3ff; color: #004080; border: 2px solid #004080; display: block; }
+        
+        .page-footer { background-color: #004080; color: #ffffff; padding: 20px 30px; text-align: center; font-size: 13px; line-height: 1.7; font-weight: 500; border-radius: 0 0 8px 8px; }
+        .page-footer p { margin: 6px 0 0; font-size: 12px; }
+        
+        .hidden { display: none !important; }
+        
+        .info-box { background: #e7f3ff; border: 2px solid #004080; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .info-box h4 { color: #004080; font-size: 14px; margin-bottom: 10px; }
+        .info-box ul { margin-left: 20px; font-size: 13px; color: #333; }
+        .info-box li { margin: 5px 0; }
+        
+        .style-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
+        .style-item { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 15px; }
+        .style-item h6 { color: #004080; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .style-item .color-preview { width: 20px; height: 20px; border-radius: 4px; border: 1px solid #333; }
+        
+        .slider-group { margin-bottom: 12px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: #333; margin-bottom: 5px; }
+        .slider-value { font-weight: 700; color: #004080; }
+        input[type="range"] { width: 100%; height: 8px; border-radius: 4px; background: #ddd; outline: none; -webkit-appearance: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #004080; cursor: pointer; }
+        
+        .color-select-group { margin-bottom: 12px; }
+        .color-select-label { font-size: 12px; color: #333; margin-bottom: 5px; display: block; }
+        .color-select { width: 100%; padding: 10px 12px; border: 2px solid #004080; border-radius: 6px; font-size: 13px; font-family: 'Oswald', Arial, sans-serif; font-weight: 500; cursor: pointer; background: #fff; }
+        
+        .admin-list { max-height: 300px; overflow-y: auto; border: 2px solid #004080; border-radius: 8px; margin-top: 15px; }
+        .admin-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid #ddd; }
+        .admin-item:last-child { border-bottom: none; }
+        .admin-item:hover { background: #e7f3ff; }
+        .admin-item .name { font-weight: 600; color: #004080; }
+        .admin-item .count { font-size: 12px; color: #666; }
+        .admin-item .actions { display: flex; gap: 8px; }
+        
+        .maps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 20px; margin-top: 20px; }
+        
+        .map-card { background: white; border: 2px solid #004080; border-radius: 8px; overflow: hidden; }
+        .map-card-header { background: #004080; color: white; padding: 15px 20px; font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .map-card-body { padding: 10px; background: #ffffff; }
+        .map-card-map { height: 450px; width: 100%; background: #ffffff; border: 1px solid #ddd; border-radius: 4px; }
+        .map-card-footer { padding: 12px 15px; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ddd; }
+        .map-card-info { font-size: 13px; color: #333; }
+        .map-card-info strong { color: #004080; }
+        
+        .button-group { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px; }
+        
+        .progress-bar { width: 100%; height: 20px; background: #ddd; border-radius: 10px; overflow: hidden; margin: 15px 0; }
+        .progress-fill { height: 100%; background: #004080; transition: width 0.3s; }
+        .progress-text { text-align: center; font-size: 13px; color: #004080; margin-top: 5px; }
+        
+        .leaflet-control-zoom { display: none !important; }
+        .leaflet-control-attribution { display: none !important; }
+        
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-box { background: #f8f9fa; border: 2px solid #004080; border-radius: 8px; padding: 15px; text-align: center; }
+        .stat-box.highlight { background: #d4edda; border-color: #28a745; }
+        .stat-value { font-size: 28px; font-weight: 700; color: #004080; }
+        .stat-box.highlight .stat-value { color: #155724; }
+        .stat-label { font-size: 12px; color: #666; text-transform: uppercase; margin-top: 5px; }
+        
+        @media (max-width: 768px) {
+            .form-row, .style-row, .maps-grid, .stats-row { grid-template-columns: 1fr; }
+        }
+        
+        @media print {
+            .map-card { break-inside: avoid; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <div class="logo-row">
+                <div class="logo-box">
+                    <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" alt="ICF-SL Logo">
+                </div>
+            </div>
+            <h3>Informatics Consultancy Firm-Sierra Leone (ICF-SL)</h3>
+            <p class="tagline"><em>Driving Data-Driven Solutions for Health and Development</em></p>
+            <h1>ADMIN UNIT MAP GENERATOR</h1>
+            <p class="subtitle">Generate Individual Maps for Each Admin Unit with Lower Boundaries</p>
+        </div>
+
+        <div id="notification" class="notification"></div>
+
+        <!-- Step 1: Upload Shapefiles -->
+        <div class="content-card">
+            <div class="content-inner">
+                <div class="section-header">
+                    <div class="section-icon">1</div>
+                    <div class="section-title">UPLOAD ADMIN SHAPEFILES</div>
+                </div>
+                
+                <div class="info-box">
+                    <h4>Instructions:</h4>
+                    <ul>
+                        <li>Upload <strong>Admin 1</strong> (higher level, e.g., Districts) - each will become a separate map with its name as the title</li>
+                        <li>Upload <strong>Admin 2</strong> (lower level, e.g., Chiefdoms) - will be displayed within each Admin 1 boundary</li>
+                        <li>The tool will generate one map per Admin 1 unit, showing its Admin 2 boundaries inside</li>
+                        <li>Download all maps as individual GeoJSON files or as a combined ZIP package</li>
+                    </ul>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Admin 1 - Higher Level (e.g., Districts)</label>
+                        <div class="upload-zone" id="admin1UploadZone" onclick="document.getElementById('admin1FileInput').click()">
+                            <div class="upload-icon">+</div>
+                            <div class="upload-text">Upload Admin 1 Shapefile</div>
+                            <div class="upload-hint">ZIP file with .shp or GeoJSON</div>
+                            <input type="file" id="admin1FileInput" accept=".zip,.geojson,.json" style="display:none" onchange="handleAdmin1Upload(event)">
+                        </div>
+                        <div class="file-info" id="admin1FileInfo">
+                            <div class="file-name" id="admin1FileName"></div>
+                            <div class="file-details" id="admin1FileDetails"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Admin 2 - Lower Level (e.g., Chiefdoms)</label>
+                        <div class="upload-zone" id="admin2UploadZone" onclick="document.getElementById('admin2FileInput').click()">
+                            <div class="upload-icon">+</div>
+                            <div class="upload-text">Upload Admin 2 Shapefile</div>
+                            <div class="upload-hint">ZIP file with .shp or GeoJSON</div>
+                            <input type="file" id="admin2FileInput" accept=".zip,.geojson,.json" style="display:none" onchange="handleAdmin2Upload(event)">
+                        </div>
+                        <div class="file-info" id="admin2FileInfo">
+                            <div class="file-name" id="admin2FileName"></div>
+                            <div class="file-details" id="admin2FileDetails"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Configure -->
+        <div class="content-card hidden" id="step2">
+            <div class="content-inner">
+                <div class="section-header">
+                    <div class="section-icon">2</div>
+                    <div class="section-title">CONFIGURE NAME FIELDS & STYLES</div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Admin 1 Name Field (Map Title)</label>
+                        <select class="form-select" id="admin1NameField">
+                            <option value="">-- Select Name Field --</option>
+                        </select>
+                        <p class="help-text">This field will be used as the title for each map</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Admin 2 Name Field (Labels)</label>
+                        <select class="form-select" id="admin2NameField">
+                            <option value="">-- Select Name Field --</option>
+                        </select>
+                        <p class="help-text">This field will be shown when hovering over Admin 2 units</p>
+                    </div>
+                </div>
+                
+                <div class="style-row">
+                    <div class="style-item">
+                        <h6><span class="color-preview" id="admin1ColorPreview" style="background:#004080"></span> Admin 1 Boundary (Outer)</h6>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Line Width</span>
+                                <span class="slider-value" id="admin1WidthValue">4 px</span>
+                            </div>
+                            <input type="range" id="admin1Width" min="1" max="10" value="4" oninput="updateStylePreview()">
+                        </div>
+                        
+                        <div class="color-select-group">
+                            <label class="color-select-label">Line Color:</label>
+                            <select class="color-select" id="admin1Color" onchange="updateStylePreview()">
+                                <option value="#004080" selected>Navy Blue</option>
+                                <option value="#000000">Black</option>
+                                <option value="#333333">Dark Gray</option>
+                                <option value="#0056b3">Blue</option>
+                                <option value="#17a2b8">Teal</option>
+                                <option value="#28a745">Green</option>
+                                <option value="#155724">Dark Green</option>
+                                <option value="#6f42c1">Purple</option>
+                                <option value="#dc3545">Red</option>
+                                <option value="#c82333">Dark Red</option>
+                                <option value="#fd7e14">Orange</option>
+                                <option value="#ffc107">Yellow</option>
+                                <option value="#856404">Brown</option>
+                                <option value="#e83e8c">Pink</option>
+                                <option value="#6c757d">Gray</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="style-item">
+                        <h6><span class="color-preview" id="admin2ColorPreview" style="background:#333333"></span> Admin 2 Boundaries (Inner)</h6>
+                        
+                        <div class="slider-group">
+                            <div class="slider-label">
+                                <span>Line Width</span>
+                                <span class="slider-value" id="admin2WidthValue">1 px</span>
+                            </div>
+                            <input type="range" id="admin2Width" min="1" max="10" value="1" oninput="updateStylePreview()">
+                        </div>
+                        
+                        <div class="color-select-group">
+                            <label class="color-select-label">Line Color:</label>
+                            <select class="color-select" id="admin2Color" onchange="updateStylePreview()">
+                                <option value="#004080">Navy Blue</option>
+                                <option value="#000000">Black</option>
+                                <option value="#333333" selected>Dark Gray</option>
+                                <option value="#0056b3">Blue</option>
+                                <option value="#17a2b8">Teal</option>
+                                <option value="#28a745">Green</option>
+                                <option value="#155724">Dark Green</option>
+                                <option value="#6f42c1">Purple</option>
+                                <option value="#dc3545">Red</option>
+                                <option value="#c82333">Dark Red</option>
+                                <option value="#fd7e14">Orange</option>
+                                <option value="#ffc107">Yellow</option>
+                                <option value="#856404">Brown</option>
+                                <option value="#e83e8c">Pink</option>
+                                <option value="#6c757d">Gray</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn-primary" onclick="generateMaps()">GENERATE MAPS</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Results Summary -->
+        <div class="content-card hidden" id="step3">
+            <div class="content-inner">
+                <div class="section-header">
+                    <div class="section-icon">3</div>
+                    <div class="section-title">GENERATED MAPS SUMMARY</div>
+                </div>
+                
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="statAdmin1">0</div>
+                        <div class="stat-label">Admin 1 Units</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="statAdmin2">0</div>
+                        <div class="stat-label">Admin 2 Units</div>
+                    </div>
+                    <div class="stat-box highlight">
+                        <div class="stat-value" id="statMaps">0</div>
+                        <div class="stat-label">Maps Generated</div>
+                    </div>
+                </div>
+                
+                <div class="progress-bar hidden" id="progressBar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="progress-text hidden" id="progressText">Generating maps...</div>
+                
+                <div class="admin-list" id="adminList"></div>
+                
+                <div class="button-group">
+                    <button class="btn-success" onclick="downloadAllGeoJSON()">DOWNLOAD ALL GEOJSON (ZIP)</button>
+                    <button class="btn-gold" onclick="downloadAllKML()">DOWNLOAD ALL KML (ZIP)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Generated Maps -->
+        <div class="content-card hidden" id="step4">
+            <div class="content-inner">
+                <div class="section-header">
+                    <div class="section-icon">4</div>
+                    <div class="section-title">MAP PREVIEWS</div>
+                </div>
+                
+                <div class="maps-grid" id="mapsGrid"></div>
+            </div>
+        </div>
+
+        <div class="page-footer">
+            <strong>Admin Unit Map Generator</strong> - Developed by ICF-SL
+            <p>Informatics Consultancy Firm-Sierra Leone | GIS Solutions for Health Systems</p>
+        </div>
+    </div>
+
+    <script>
+        let admin1GeoJSON = null;
+        let admin2GeoJSON = null;
+        let admin1NameField = '';
+        let admin2NameField = '';
+        let generatedMaps = [];
+        let mapInstances = {};
+        
+        let styles = {
+            admin1: { color: '#004080', weight: 4, fillOpacity: 0 },
+            admin2: { color: '#333333', weight: 1, fillOpacity: 0 }
+        };
+
+        // Drag and drop handlers
+        ['admin1UploadZone', 'admin2UploadZone'].forEach(id => {
+            const zone = document.getElementById(id);
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    if (id === 'admin1UploadZone') {
+                        processFile(e.dataTransfer.files[0], 'admin1');
+                    } else {
+                        processFile(e.dataTransfer.files[0], 'admin2');
+                    }
+                }
+            });
+        });
+
+        function handleAdmin1Upload(event) {
+            if (event.target.files.length) processFile(event.target.files[0], 'admin1');
+        }
+
+        function handleAdmin2Upload(event) {
+            if (event.target.files.length) processFile(event.target.files[0], 'admin2');
+        }
+
+        async function processFile(file, type) {
+            const fileName = file.name;
+            const ext = fileName.split('.').pop().toLowerCase();
+            
+            if (!['zip', 'geojson', 'json'].includes(ext)) {
+                showNotification('Please upload a ZIP shapefile or GeoJSON file', 'error');
+                return;
+            }
+
+            try {
+                let geojson;
+                
+                if (ext === 'zip') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    geojson = await shp(arrayBuffer);
+                    if (Array.isArray(geojson)) geojson = geojson[0];
+                } else {
+                    const text = await file.text();
+                    geojson = JSON.parse(text);
+                }
+
+                if (!geojson || !geojson.features) {
+                    showNotification('Invalid file format. Could not read features.', 'error');
+                    return;
+                }
+
+                const featureCount = geojson.features.length;
+                
+                if (type === 'admin1') {
+                    admin1GeoJSON = geojson;
+                    document.getElementById('admin1UploadZone').classList.add('loaded');
+                    document.getElementById('admin1FileInfo').classList.add('show');
+                    document.getElementById('admin1FileName').textContent = fileName;
+                    document.getElementById('admin1FileDetails').textContent = `${featureCount} features loaded`;
+                    populateNameFields('admin1');
+                } else {
+                    admin2GeoJSON = geojson;
+                    document.getElementById('admin2UploadZone').classList.add('loaded');
+                    document.getElementById('admin2FileInfo').classList.add('show');
+                    document.getElementById('admin2FileName').textContent = fileName;
+                    document.getElementById('admin2FileDetails').textContent = `${featureCount} features loaded`;
+                    populateNameFields('admin2');
+                }
+
+                showNotification(`${type === 'admin1' ? 'Admin 1' : 'Admin 2'} loaded: ${featureCount} features`, 'success');
+                
+                if (admin1GeoJSON && admin2GeoJSON) {
+                    document.getElementById('step2').classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error(error);
+                showNotification('Error processing file: ' + error.message, 'error');
+            }
+        }
+
+        function populateNameFields(type) {
+            const geojson = type === 'admin1' ? admin1GeoJSON : admin2GeoJSON;
+            const select = document.getElementById(type + 'NameField');
+            
+            if (!geojson || !geojson.features.length) return;
+            
+            const props = geojson.features[0].properties || {};
+            const fields = Object.keys(props);
+            
+            select.innerHTML = '<option value="">-- Select Name Field --</option>';
+            fields.forEach(field => {
+                const option = document.createElement('option');
+                option.value = field;
+                option.textContent = field;
+                const lower = field.toLowerCase();
+                if (lower.includes('name') || lower === 'admin1' || lower === 'admin2' || 
+                    lower === 'district' || lower === 'chiefdom' || lower === 'region') {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+
+        function updateStylePreview() {
+            const admin1Width = document.getElementById('admin1Width').value;
+            const admin1Color = document.getElementById('admin1Color').value;
+            document.getElementById('admin1WidthValue').textContent = admin1Width + ' px';
+            document.getElementById('admin1ColorPreview').style.background = admin1Color;
+            
+            const admin2Width = document.getElementById('admin2Width').value;
+            const admin2Color = document.getElementById('admin2Color').value;
+            document.getElementById('admin2WidthValue').textContent = admin2Width + ' px';
+            document.getElementById('admin2ColorPreview').style.background = admin2Color;
+            
+            styles.admin1 = { color: admin1Color, weight: parseInt(admin1Width), fillOpacity: 0 };
+            styles.admin2 = { color: admin2Color, weight: parseInt(admin2Width), fillOpacity: 0 };
+        }
+
+        function generateMaps() {
+            admin1NameField = document.getElementById('admin1NameField').value;
+            admin2NameField = document.getElementById('admin2NameField').value;
+            
+            if (!admin1NameField) {
+                showNotification('Please select Admin 1 name field', 'error');
+                return;
+            }
+            if (!admin2NameField) {
+                showNotification('Please select Admin 2 name field', 'error');
+                return;
+            }
+            
+            updateStylePreview();
+            
+            // Clear previous maps
+            generatedMaps = [];
+            Object.values(mapInstances).forEach(m => m.remove());
+            mapInstances = {};
+            
+            // Process each Admin 1 unit
+            const adminListHtml = [];
+            
+            admin1GeoJSON.features.forEach((admin1Feature, index) => {
+                const admin1Name = admin1Feature.properties[admin1NameField] || `Admin1_${index + 1}`;
+                
+                // Find Admin 2 units within this Admin 1
+                const admin2Within = findAdmin2Within(admin1Feature);
+                
+                generatedMaps.push({
+                    name: admin1Name,
+                    admin1Feature: admin1Feature,
+                    admin2Features: admin2Within,
+                    index: index
+                });
+                
+                adminListHtml.push(`
+                    <div class="admin-item">
+                        <div>
+                            <div class="name">${admin1Name}</div>
+                            <div class="count">${admin2Within.length} Admin 2 units inside</div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn-primary btn-sm" onclick="scrollToMap(${index})">View</button>
+                            <button class="btn-gold btn-sm" onclick="downloadSingleGeoJSON(${index})">GeoJSON</button>
+                        </div>
+                    </div>
+                `);
+            });
+            
+            // Update stats
+            document.getElementById('statAdmin1').textContent = admin1GeoJSON.features.length;
+            document.getElementById('statAdmin2').textContent = admin2GeoJSON.features.length;
+            document.getElementById('statMaps').textContent = generatedMaps.length;
+            
+            document.getElementById('adminList').innerHTML = adminListHtml.join('');
+            document.getElementById('step3').classList.remove('hidden');
+            document.getElementById('step4').classList.remove('hidden');
+            
+            // Generate map cards
+            generateMapCards();
+            
+            showNotification(`Generated ${generatedMaps.length} maps`, 'success');
+            document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function findAdmin2Within(admin1Feature) {
+            const result = [];
+            
+            admin2GeoJSON.features.forEach(admin2Feature => {
+                try {
+                    const centroid = turf.centroid(admin2Feature);
+                    const isWithin = turf.booleanPointInPolygon(centroid, admin1Feature);
+                    
+                    if (isWithin) {
+                        result.push(admin2Feature);
+                    }
+                } catch (e) {
+                    try {
+                        const intersection = turf.intersect(admin1Feature, admin2Feature);
+                        if (intersection) {
+                            const intersectArea = turf.area(intersection);
+                            const admin2Area = turf.area(admin2Feature);
+                            if (intersectArea / admin2Area > 0.5) {
+                                result.push(admin2Feature);
+                            }
+                        }
+                    } catch (e2) {
+                        // Skip
+                    }
+                }
+            });
+            
+            return result;
+        }
+
+        function generateMapCards() {
+            const grid = document.getElementById('mapsGrid');
+            grid.innerHTML = '';
+            
+            generatedMaps.forEach((mapData, index) => {
+                const admin2Names = mapData.admin2Features.map(f => 
+                    f.properties[admin2NameField] || 'Unknown'
+                ).join(', ');
+                
+                const card = document.createElement('div');
+                card.className = 'map-card';
+                card.id = `map-card-${index}`;
+                card.innerHTML = `
+                    <div class="map-card-header">${mapData.name}</div>
+                    <div class="map-card-body">
+                        <div class="map-card-map" id="map-${index}"></div>
+                    </div>
+                    <div class="map-card-footer">
+                        <div class="map-card-info"><strong>${mapData.admin2Features.length}</strong> lower admin units</div>
+                        <button class="btn-primary btn-sm" onclick="downloadSingleGeoJSON(${index})">Download</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+                
+                setTimeout(() => initializeMap(index), 100);
+            });
+        }
+
+        function initializeMap(index) {
+            const mapData = generatedMaps[index];
+            const mapId = `map-${index}`;
+            
+            if (mapInstances[mapId]) {
+                mapInstances[mapId].remove();
+            }
+            
+            const map = L.map(mapId, {
+                zoomControl: false,
+                scrollWheelZoom: false,
+                doubleClickZoom: false,
+                touchZoom: false,
+                boxZoom: false,
+                keyboard: false,
+                dragging: false
+            });
+            
+            mapInstances[mapId] = map;
+            
+            const bounds = L.latLngBounds();
+            
+            // Add Admin 2 features first (inner boundaries)
+            mapData.admin2Features.forEach(feature => {
+                const layer = L.geoJSON(feature, {
+                    style: {
+                        color: styles.admin2.color,
+                        weight: styles.admin2.weight,
+                        fillColor: '#ffffff',
+                        fillOpacity: 0
+                    }
+                }).addTo(map);
+                
+                const name = feature.properties[admin2NameField] || '';
+                if (name) {
+                    layer.bindTooltip(name, { permanent: false, direction: 'center' });
+                }
+                
+                bounds.extend(layer.getBounds());
+            });
+            
+            // Add Admin 1 boundary on top (outer boundary)
+            const admin1Layer = L.geoJSON(mapData.admin1Feature, {
+                style: {
+                    color: styles.admin1.color,
+                    weight: styles.admin1.weight,
+                    fillColor: 'transparent',
+                    fillOpacity: 0
+                }
+            }).addTo(map);
+            
+            bounds.extend(admin1Layer.getBounds());
+            
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [15, 15] });
+            }
+        }
+
+        function scrollToMap(index) {
+            document.getElementById(`map-card-${index}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function downloadSingleGeoJSON(index) {
+            const mapData = generatedMaps[index];
+            
+            const combined = {
+                type: 'FeatureCollection',
+                name: mapData.name,
+                features: [
+                    {
+                        ...mapData.admin1Feature,
+                        properties: {
+                            ...mapData.admin1Feature.properties,
+                            _layer: 'admin1',
+                            _style_color: styles.admin1.color,
+                            _style_weight: styles.admin1.weight
+                        }
+                    },
+                    ...mapData.admin2Features.map(f => ({
+                        ...f,
+                        properties: {
+                            ...f.properties,
+                            _layer: 'admin2',
+                            _style_color: styles.admin2.color,
+                            _style_weight: styles.admin2.weight
+                        }
+                    }))
+                ]
+            };
+            
+            const content = JSON.stringify(combined, null, 2);
+            const blob = new Blob([content], { type: 'application/geo+json' });
+            const safeName = mapData.name.replace(/[^a-z0-9]/gi, '_');
+            downloadBlob(blob, `${safeName}_map.geojson`);
+            
+            showNotification(`Downloaded ${mapData.name} map`, 'success');
+        }
+
+        async function downloadAllGeoJSON() {
+            if (generatedMaps.length === 0) {
+                showNotification('No maps to download', 'error');
+                return;
+            }
+            
+            showNotification('Creating ZIP file...', 'info');
+            
+            const zip = new JSZip();
+            
+            generatedMaps.forEach(mapData => {
+                const combined = {
+                    type: 'FeatureCollection',
+                    name: mapData.name,
+                    features: [
+                        {
+                            ...mapData.admin1Feature,
+                            properties: {
+                                ...mapData.admin1Feature.properties,
+                                _layer: 'admin1',
+                                _style_color: styles.admin1.color,
+                                _style_weight: styles.admin1.weight
+                            }
+                        },
+                        ...mapData.admin2Features.map(f => ({
+                            ...f,
+                            properties: {
+                                ...f.properties,
+                                _layer: 'admin2',
+                                _style_color: styles.admin2.color,
+                                _style_weight: styles.admin2.weight
+                            }
+                        }))
+                    ]
+                };
+                
+                const safeName = mapData.name.replace(/[^a-z0-9]/gi, '_');
+                zip.file(`${safeName}_map.geojson`, JSON.stringify(combined, null, 2));
+            });
+            
+            const blob = await zip.generateAsync({ type: 'blob' });
+            downloadBlob(blob, 'all_admin_maps_geojson.zip');
+            
+            showNotification('Downloaded all GeoJSON files', 'success');
+        }
+
+        async function downloadAllKML() {
+            if (generatedMaps.length === 0) {
+                showNotification('No maps to download', 'error');
+                return;
+            }
+            
+            showNotification('Creating ZIP file...', 'info');
+            
+            const zip = new JSZip();
+            
+            generatedMaps.forEach(mapData => {
+                const kml = geojsonToKML(mapData);
+                const safeName = mapData.name.replace(/[^a-z0-9]/gi, '_');
+                zip.file(`${safeName}_map.kml`, kml);
+            });
+            
+            const blob = await zip.generateAsync({ type: 'blob' });
+            downloadBlob(blob, 'all_admin_maps_kml.zip');
+            
+            showNotification('Downloaded all KML files', 'success');
+        }
+
+        function geojsonToKML(mapData) {
+            let kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+            kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
+            kml += '<Document>\n';
+            kml += `<name>${escapeXml(mapData.name)}</name>\n`;
+            
+            kml += `<Style id="admin1Style">
+                <LineStyle><color>${hexToKmlColor(styles.admin1.color)}</color><width>${styles.admin1.weight}</width></LineStyle>
+                <PolyStyle><color>00ffffff</color></PolyStyle>
+            </Style>\n`;
+            
+            kml += `<Style id="admin2Style">
+                <LineStyle><color>${hexToKmlColor(styles.admin2.color)}</color><width>${styles.admin2.weight}</width></LineStyle>
+                <PolyStyle><color>00ffffff</color></PolyStyle>
+            </Style>\n`;
+            
+            // Add Admin 1 boundary
+            kml += featureToKML(mapData.admin1Feature, mapData.name, 'admin1Style');
+            
+            // Add Admin 2 features
+            mapData.admin2Features.forEach(feature => {
+                const name = feature.properties[admin2NameField] || 'Admin2';
+                kml += featureToKML(feature, name, 'admin2Style');
+            });
+            
+            kml += '</Document>\n</kml>';
+            return kml;
+        }
+
+        function featureToKML(feature, name, styleId) {
+            let kml = '<Placemark>\n';
+            kml += `<name>${escapeXml(name)}</name>\n`;
+            kml += `<styleUrl>#${styleId}</styleUrl>\n`;
+            
+            if (feature.geometry.type === 'Polygon') {
+                kml += '<Polygon><outerBoundaryIs><LinearRing><coordinates>';
+                kml += feature.geometry.coordinates[0].map(c => `${c[0]},${c[1]},0`).join(' ');
+                kml += '</coordinates></LinearRing></outerBoundaryIs></Polygon>\n';
+            } else if (feature.geometry.type === 'MultiPolygon') {
+                kml += '<MultiGeometry>\n';
+                feature.geometry.coordinates.forEach(polygon => {
+                    kml += '<Polygon><outerBoundaryIs><LinearRing><coordinates>';
+                    kml += polygon[0].map(c => `${c[0]},${c[1]},0`).join(' ');
+                    kml += '</coordinates></LinearRing></outerBoundaryIs></Polygon>\n';
+                });
+                kml += '</MultiGeometry>\n';
+            }
+            
+            kml += '</Placemark>\n';
+            return kml;
+        }
+
+        function hexToKmlColor(hex) {
+            const r = hex.substring(1, 3);
+            const g = hex.substring(3, 5);
+            const b = hex.substring(5, 7);
+            return 'ff' + b + g + r;
+        }
+
+        function escapeXml(str) {
+            return String(str).replace(/[<>&'"]/g, c => ({
+                '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;'
+            }[c]));
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            setTimeout(() => notification.className = 'notification', 4000);
+        }
+    </script>
+</body>
+</html>
